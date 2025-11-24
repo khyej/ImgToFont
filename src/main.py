@@ -21,7 +21,8 @@ def main():
             font_path=args.font_path,
             potrace_path=potrace_execute,
             font_name=args.font_name,
-            callback=view.display_message
+            callback=view.display_message,
+            progress_callback=view.display_progress,
         )
         builder.build_all()
         view.display_suceess();

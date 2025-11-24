@@ -15,7 +15,8 @@ from .syllable_layout import (
 class FontBuilder:
     def __init__(self, image_dir: str, svg_dir: str, font_path: str, potrace_path: str,
                  font_name: str = "Font", upm: int = 1000, fixed_width: int = 1000,
-                 callback=None):
+                 callback=None, progress_callback=None):
+
         self.image_dir = image_dir
         self.svg_dir = svg_dir
         self.font_path = font_path
@@ -23,8 +24,9 @@ class FontBuilder:
         self.upm = upm
         self.fixed_width = fixed_width
         self.callback = callback if callback else lambda msg: None
+        self.progress_callback = progress_callback if progress_callback else lambda cur, tot : None
 
-        self.png_converter = PngToSvg(potrace_path)
+        self.png_converter = PngToSvg(potrace_path, message_callback=self.callback, progress_callback=self.progress_callback)
         self.glyph_builder = GlyphBuilder(upm=self.upm)
 
         self.fb = TTFontBuilder(unitsPerEm=self.upm, isTTF=True)
@@ -149,12 +151,18 @@ class FontBuilder:
             return False
 
     def _build_base_glyphs(self):
-        self.callback(f"    자모(U+3131~U+3163) 빌드")
-        success_count = 0
+        total_jamo = len(JAMO_MAP)
+        total_l = len(LEADING_CONSONANTS) * 6
+        total_v = len(VOWELS) * 2
+        total_t = (len(TRAILING_CONSONANTS) - 1) * 3
+
+        self.callback(f"    자모 빌드 (U+3131~U+3163)")
+        jamo_count = 0
+
         for unicode_val, glyph_name in JAMO_MAP.items():
             if self._load_svg_as_glyph(glyph_name, unicode_val):
-                success_count += 1
-        self.callback(f"    -> {success_count}/{len(JAMO_MAP)}개 성공")
+                jamo_count += 1
+                self.progress_callback(jamo_count, total_jamo)
 
         self.callback(f"    부품 빌드")
 
@@ -164,7 +172,7 @@ class FontBuilder:
                 glyph_name = f"L_{l_idx}_type{layout_type}"
                 if self._load_svg_as_glyph(glyph_name):
                     l_count += 1
-        self.callback(f"    초성: {l_count}개")
+                    self.progress_callback(l_count, total_l, "[초성]")
 
         v_count = 0
         for v_idx in range(len(VOWELS)):
@@ -180,7 +188,7 @@ class FontBuilder:
                 glyph_name = f"V_{v_idx}_type{layout_type}"
                 if self._load_svg_as_glyph(glyph_name):
                     v_count += 1
-        self.callback(f"    중성: {v_count}개")
+                    self.progress_callback(v_count, total_v, "[중성]")
 
         t_count = 0
         for t_idx in range(1, len(TRAILING_CONSONANTS)):
@@ -188,13 +196,14 @@ class FontBuilder:
                 glyph_name = f"T_{t_idx}_type{layout_type}"
                 if self._load_svg_as_glyph(glyph_name):
                     t_count += 1
-        self.callback(f"    종성: {t_count}개")
+                    self.progress_callback(t_count, total_t, "[종성]")
 
     def _build_syllable_glyphs(self):
         BASE_CODE = 0xAC00
         TOTAL = 11172
 
         success_count = 0
+
         for i in range(TOTAL):
             char_code = BASE_CODE + i
 
@@ -211,10 +220,9 @@ class FontBuilder:
             if self._add_composite_glyph(char_code, l_name, v_name, t_name):
                 success_count += 1
 
-            if (i + 1) % 2000 == 0:
-                ch = chr(char_code)
-                progress = (i + 1) / TOTAL * 100
-                self.callback(f"    -> {progress:.1f}% ('{ch}' 생성)")
+            if i % 50 == 0 or i == TOTAL - 1:
+                current_char = chr(char_code)
+                self.progress_callback(i+1, TOTAL, f"음절({current_char})")
 
         self.callback(f"    -> {success_count}/{TOTAL}개 음절 생성")
 
@@ -269,22 +277,27 @@ class FontBuilder:
             t_comp.y = 0
             glyph.components.append(t_comp)
 
-        min_x, min_y = float('inf'), float('inf')
-        max_x, max_y = float('-inf'), float('-inf')
+        # min_x, min_y = float('inf'), float('inf')
+        # max_x, max_y = float('-inf'), float('-inf')
+        #
+        # for comp_name in [l_name, v_name] + ([t_name] if t_name else []):
+        #     comp_glyph = self.glyphs[comp_name]
+        #     if hasattr(comp_glyph, 'xMin') and comp_glyph.xMin is not None:
+        #         min_x = min(min_x, comp_glyph.xMin)
+        #         min_y = min(min_y, comp_glyph.yMin)
+        #         max_x = max(max_x, comp_glyph.xMax)
+        #         max_y = max(max_y, comp_glyph.yMax)
+        #
+        # if min_x != float('inf'):
+        #     glyph.xMin = int(min_x)
+        #     glyph.yMin = int(min_y)
+        #     glyph.xMax = int(max_x)
+        #     glyph.yMax = int(max_y)
 
-        for comp_name in [l_name, v_name] + ([t_name] if t_name else []):
-            comp_glyph = self.glyphs[comp_name]
-            if hasattr(comp_glyph, 'xMin') and comp_glyph.xMin is not None:
-                min_x = min(min_x, comp_glyph.xMin)
-                min_y = min(min_y, comp_glyph.yMin)
-                max_x = max(max_x, comp_glyph.xMax)
-                max_y = max(max_y, comp_glyph.yMax)
-
-        if min_x != float('inf'):
-            glyph.xMin = int(min_x)
-            glyph.yMin = int(min_y)
-            glyph.xMax = int(max_x)
-            glyph.yMax = int(max_y)
+        try:
+            glyph.recalcBounds(self.glyphs)
+        except Exception:
+            pass
 
         self.glyphs[glyph_name] = glyph
         self.metrics[glyph_name] = (self.fixed_width, 0)

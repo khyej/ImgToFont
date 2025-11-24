@@ -4,20 +4,30 @@ from PIL import Image
 
 
 class PngToSvg:
-    def __init__(self, potrace_path):
+    def __init__(self, potrace_path, message_callback = None, progress_callback = None):
         self.potrace_path = potrace_path
+        self.message_callback = message_callback if message_callback else lambda msg : None
+        self.progress_callback = progress_callback if progress_callback else lambda cur, tot: None
 
     def convert_all(self, input_dir, output_dir):
         try:
             self._set_output_dir(output_dir)
             png_files = self._get_png_files(input_dir)
+            total_files = len(png_files)
 
-            for file in png_files:
+            if total_files == 0:
+                self.message_callback("PNG 파일이 없습니다.")
+                return
+
+            for i, file in enumerate(png_files):
                 png_path = os.path.join(input_dir, file)
                 svg_file = os.path.splitext(file)[0] + ".svg"
                 svg_path = os.path.join(output_dir, svg_file)
 
                 self._convert_file(png_path, svg_path)
+
+                self.progress_callback(i + 1, total_files)
+
         except Exception as e:
             raise Exception(f"PNG TO SVG : {e}")
 
