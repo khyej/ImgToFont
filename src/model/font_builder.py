@@ -361,12 +361,15 @@ class FontBuilder:
             ulUnicodeRange2=(1 << 28),  # Hangul Syllables
             ulUnicodeRange3=0,
             ulUnicodeRange4=0,
+            ulCodePageRange1 = (1<<0) | (1<<19) | (1<<20),
+            ulCodePageRAnge2 = 0,
             achVendID="HYEJ",
             fsSelection=(1 << 6) | (1 << 7),
             usFirstCharIndex=min(self.cmap_data.keys()) if self.cmap_data else 0,
             usLastCharIndex=max(self.cmap_data.keys()) if self.cmap_data else 0
         )
 
+        # post 테이블
         self.fb.setupPost(
             isFixedPitch=1,
             underlinePosition=-75,
