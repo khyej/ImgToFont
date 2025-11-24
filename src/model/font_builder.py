@@ -15,7 +15,7 @@ from .syllable_layout import (
 class FontBuilder:
     def __init__(self, image_dir: str, svg_dir: str, font_path: str, potrace_path: str,
                  font_name: str = "Font", upm: int = 1000, fixed_width: int = 1000,
-                 callback=None, progress_callback=None):
+                 step_call=None, subtask_call=None, progress_call=None):
 
         self.image_dir = image_dir
         self.svg_dir = svg_dir
@@ -23,10 +23,11 @@ class FontBuilder:
         self.font_name = font_name
         self.upm = upm
         self.fixed_width = fixed_width
-        self.callback = callback if callback else lambda msg: None
-        self.progress_callback = progress_callback if progress_callback else lambda cur, tot : None
+        self.step_call = step_call if step_call else lambda msg: None
+        self.subtask_call = subtask_call if subtask_call else lambda  num, tot, msg : None
+        self.progress_call = progress_call if progress_call else lambda cur, tot : None
 
-        self.png_converter = PngToSvg(potrace_path, message_callback=self.callback, progress_callback=self.progress_callback)
+        self.png_converter = PngToSvg(potrace_path, subtask_call=subtask_call, progress_call=self.progress_call)
         self.glyph_builder = GlyphBuilder()
 
         self.fb = TTFontBuilder(unitsPerEm=self.upm, isTTF=True)
@@ -42,38 +43,38 @@ class FontBuilder:
 
     def build_all(self):
         try:
-            self.callback("[1/6] PNG → SVG 변환.")
+            self.step_call(1,6,"PNG → SVG 변환")
             self.png_converter.convert_all(self.image_dir, self.svg_dir)
-            self.callback("PNG → SVG 변환 완료")
+            self.subtask_call("PNG → SVG 변환 완료")
 
-            self.callback("[2/6] 필수 글리프 생성")
+            self.step_call(2,6,"필수 글리프 생성")
             self._build_notdef_glyph()
             self._build_null_glyph()
             self._build_nonmarkingreturn_glyph()
-            self.callback("필수 글리프 생성 완료")
+            self.subtask_call("필수 글리프 생성 완료")
 
-            self.callback("[3/6] 부품 글리프 빌드")
+            self.step_call(3,6,"부품 글리프 빌드")
             self._build_base_glyphs()
-            self.callback("부품 글리프 빌드 완료")
+            self.subtask_call("부품 글리프 빌드 완료")
 
-            self.callback("[4/6] 음절 글리프 빌드")
+            self.step_call(4,6,"음절 글리프 빌드")
             self._build_syllable_glyphs()
-            self.callback("음절 글리프 빌드 완료")
+            self.subtask_call("음절 글리프 빌드 완료")
 
-            self.callback("[5/6] 폰트 테이블 설정")
+            self.step_call(5,6,"폰트 테이블 설정")
             all_glyphs = list(self.glyphs.keys())
             if ".notdef" in all_glyphs:
                 all_glyphs.remove(".notdef")
 
             self.glyph_order = [".notdef"] + sorted(all_glyphs)
-            self.callback(f"    {len(self.glyph_order)}개 글리프 설정")
+            self.subtask_call(f"{len(self.glyph_order)}개 글리프 설정")
             self.fb.setupGlyphOrder(self.glyph_order)
             self._fill_tables()
-            self.callback("폰트 테이블 설정 완료")
+            self.subtask_call("폰트 테이블 설정 완료")
 
-            self.callback("[6/6] 폰트 파일 저장")
+            self.step_call(6,6,"폰트 파일 저장")
             self._save_font()
-            self.callback("폰트 파일 저장 완료")
+            self.subtask_call("폰트 파일 저장 완료")
 
         except Exception as e:
             raise Exception(f"Font Build : {e}")
@@ -112,6 +113,7 @@ class FontBuilder:
         self.glyphs[glyph_name] = glyph
 
         width = advance_width if advance_width is not None else self.fixed_width
+
         self.metrics[glyph_name] = (width, 0)
 
         if hasattr(glyph, 'xMin') and glyph.xMin is not None:
@@ -133,7 +135,7 @@ class FontBuilder:
 
         if not os.path.exists(svg_path):
             if unicode_val:
-                self.callback(f"    {file_name}.svg 파일 X → .notdef")
+                self.subtask_call(f"{file_name}.svg 파일 X → .notdef")
                 self.cmap_data[unicode_val] = ".notdef"
             return False
 
@@ -155,15 +157,15 @@ class FontBuilder:
         total_v = len(VOWELS) * 2
         total_t = (len(TRAILING_CONSONANTS) - 1) * 3
 
-        self.callback(f"    자모 빌드 (U+3131~U+3163)")
+        self.subtask_call(f"자모 빌드 (U+3131~U+3163)")
         jamo_count = 0
 
         for unicode_val, glyph_name in JAMO_MAP.items():
             if self._load_svg_as_glyph(glyph_name, unicode_val):
                 jamo_count += 1
-                self.progress_callback(jamo_count, total_jamo)
+                self.progress_call(jamo_count, total_jamo)
 
-        self.callback(f"    부품 빌드")
+        self.subtask_call(f"부품 빌드")
 
         l_count = 0
         for l_idx in range(len(LEADING_CONSONANTS)):
@@ -171,7 +173,7 @@ class FontBuilder:
                 glyph_name = f"L_{l_idx}_type{layout_type}"
                 if self._load_svg_as_glyph(glyph_name):
                     l_count += 1
-                    self.progress_callback(l_count, total_l, "[초성]")
+                    self.progress_call(l_count, total_l, "[초성]")
 
         v_count = 0
         for v_idx in range(len(VOWELS)):
@@ -187,7 +189,7 @@ class FontBuilder:
                 glyph_name = f"V_{v_idx}_type{layout_type}"
                 if self._load_svg_as_glyph(glyph_name):
                     v_count += 1
-                    self.progress_callback(v_count, total_v, "[중성]")
+                    self.progress_call(v_count, total_v, "[중성]")
 
         t_count = 0
         for t_idx in range(1, len(TRAILING_CONSONANTS)):
@@ -195,7 +197,7 @@ class FontBuilder:
                 glyph_name = f"T_{t_idx}_type{layout_type}"
                 if self._load_svg_as_glyph(glyph_name):
                     t_count += 1
-                    self.progress_callback(t_count, total_t, "[종성]")
+                    self.progress_call(t_count, total_t, "[종성]")
 
     def _build_syllable_glyphs(self):
         BASE_CODE = 0xAC00
@@ -221,9 +223,9 @@ class FontBuilder:
 
             if i % 50 == 0 or i == TOTAL - 1:
                 current_char = chr(char_code)
-                self.progress_callback(i+1, TOTAL, f"음절({current_char})")
+                self.progress_call(i+1, TOTAL, f"음절({current_char})")
 
-        self.callback(f"    -> {success_count}/{TOTAL}개 음절 생성")
+        self.subtask_call(f"{success_count}/{TOTAL}개 음절 생성")
 
     def _get_layout_type(self, v_idx, t_idx) -> int:
         if t_idx == 0:
@@ -239,12 +241,11 @@ class FontBuilder:
                 return 6
             return 4
 
-    def _create_component(self, glyph_name, x, y,  transform, flags):
+    def _create_component(self, glyph_name, x, y, flags):
         comp = GlyphComponent()
         comp.glyphName = glyph_name
         comp.x = x
         comp.y = y
-        comp.transform = transform
         comp.flags = flags
         return comp
 
@@ -263,7 +264,7 @@ class FontBuilder:
         glyph.numberOfContours = -1
         glyph.components = []
 
-        flags = 0x0002 | 0x0004
+        flags = 0x0004  #  0x0002
 
         glyph.components.append(
             self._create_component(l_name, 0, 0, flags)
@@ -303,19 +304,25 @@ class FontBuilder:
         # head 테이블
         self.fb.setupHead(
             unitsPerEm=self.upm,
-            xMin=xMin,
-            yMin=yMin,
-            xMax=xMax,
-            yMax=yMax,
+            # xMin=xMin,
+            # yMin=yMin,
+            # xMax=xMax,
+            # yMax=yMax,
+            xMin=-100,
+            yMin=-200,
+            xMax = self.fixed_width + 100,
+            yMax = 1400,
             indexToLocFormat=1
         )
 
         # hhea 테이블
         self.fb.setupHorizontalHeader(
-            ascent=1100,
-            descent=-250,
+            ascent=1300,
+            descent=-500,
             lineGap=0,
-            numberOfHMetrics=len(self.glyph_order)
+            numberOfHMetrics=len(self.glyph_order),
+            advanceWidthMax = self.fixed_width,
+            xMaxExtent = self.fixed_width
         )
 
         # maxp 테이블
@@ -337,11 +344,11 @@ class FontBuilder:
             usWeightClass=400,
             usWidthClass=5,
             fsType=0,
-            sTypoAscender=1100,
-            sTypoDescender=-250,
-            sTypoLineGap=0,
-            usWinAscent=1100,
-            usWinDescent=300,
+            sTypoAscender=800,
+            sTypoDescender=-200,
+            sTypoLineGap=200,
+            usWinAscent=1300,
+            usWinDescent=500,
             ulUnicodeRange1=(1 << 0) | (1 << 17),  # Basic Latin + Hangul Jamo
             ulUnicodeRange2=(1 << 28),  # Hangul Syllables
             ulUnicodeRange3=0,
@@ -365,5 +372,5 @@ class FontBuilder:
         os.makedirs(os.path.dirname(self.font_path), exist_ok=True)
         self.fb.save(self.font_path)
 
-        self.callback(f"    파일 경로: {os.path.abspath(self.font_path)}")
-        self.callback(f"    파일 크기: {os.path.getsize(self.font_path) / 1024:.1f} KB")
+        # self.subtask_call(f"파일 경로: {os.path.abspath(self.font_path)}")
+        # self.subtask_call(f"파일 크기: {os.path.getsize(self.font_path) / 1024:.1f} KB")

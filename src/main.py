@@ -21,11 +21,12 @@ def main():
             font_path=args.font_path,
             potrace_path=potrace_execute,
             font_name=args.font_name,
-            callback=view.display_message,
-            progress_callback=view.display_progress,
+            step_call=view.display_step,
+            subtask_call=view.display_subtask,
+            progress_call=view.display_progress,
         )
         builder.build_all()
-        view.display_suceess();
+        view.display_suceess(args.font_path);
     except Exception as e:
         view.display_error(f"Font Build : {e}")
 

@@ -4,10 +4,10 @@ from PIL import Image
 
 
 class PngToSvg:
-    def __init__(self, potrace_path, message_callback = None, progress_callback = None):
+    def __init__(self, potrace_path, subtask_call = None, progress_call = None):
         self.potrace_path = potrace_path
-        self.message_callback = message_callback if message_callback else lambda msg : None
-        self.progress_callback = progress_callback if progress_callback else lambda cur, tot: None
+        self.subtask_call = subtask_call if subtask_call else lambda msg : None
+        self.progress_call = progress_call if progress_call else lambda cur, tot: None
 
     def convert_all(self, input_dir, output_dir):
         try:
@@ -16,7 +16,7 @@ class PngToSvg:
             total_files = len(png_files)
 
             if total_files == 0:
-                self.message_callback("PNG 파일이 없습니다.")
+                self.subtask_call("PNG 파일이 없습니다.")
                 return
 
             for i, file in enumerate(png_files):
@@ -26,7 +26,7 @@ class PngToSvg:
 
                 self._convert_file(png_path, svg_path)
 
-                self.progress_callback(i + 1, total_files)
+                self.progress_call(i + 1, total_files)
 
         except Exception as e:
             raise Exception(f"PNG TO SVG : {e}")
