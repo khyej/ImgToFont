@@ -24,7 +24,7 @@ def main():
             callback=view.display_message
         )
         builder.build_all()
-        view.display_suceess(args.font_path)
+        view.display_suceess();
     except Exception as e:
         view.display_error(f"Font Build : {e}")
 
