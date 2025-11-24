@@ -54,14 +54,24 @@ class PngToSvg:
                 bmp_path,
                 "-s",
                 "-o", output_path,
-                "--unit", "1"
+                "--unit", "1",
+                "-t", "2"
             ]
 
             subprocess.run(command, check=True, capture_output=True, text=True,
-                           encoding="utf-8")
+                           encoding="utf-8", timeout=20)
+        except subprocess.TimeoutExpired:
+            error_msg = f"'{input_path}' - 변환 시간 초과(20초)"
+            raise Exception(error_msg)
         except FileNotFoundError:
             error_msg = f"Potrace('{self.potrace_path}') 실행 불가, README.md를 확인해주세요."
             raise Exception(error_msg)
         except subprocess.CalledProcessError as e:
             error_msg = f"{input_path} 변환 실패 : {e.stderr}"
             raise Exception(error_msg)
+        finally:
+            if os.path.exists(bmp_path):
+                try:
+                    os.remove(bmp_path)
+                except PermissionError:
+                    pass

@@ -27,7 +27,6 @@ class FontBuilder:
         self.progress_callback = progress_callback if progress_callback else lambda cur, tot : None
 
         self.png_converter = PngToSvg(potrace_path, message_callback=self.callback, progress_callback=self.progress_callback)
-        # self.glyph_builder = GlyphBuilder(upm=self.upm)
         self.glyph_builder = GlyphBuilder()
 
         self.fb = TTFontBuilder(unitsPerEm=self.upm, isTTF=True)
@@ -240,6 +239,15 @@ class FontBuilder:
                 return 6
             return 4
 
+    def _create_component(self, glyph_name, x, y,  transform, flags):
+        comp = GlyphComponent()
+        comp.glyphName = glyph_name
+        comp.x = x
+        comp.y = y
+        comp.transform = transform
+        comp.flags = flags
+        return comp
+
     def _add_composite_glyph(self, char_code, l_name, v_name, t_name) -> bool:
         glyph_name = f"uni{char_code:04X}"
 
@@ -255,44 +263,20 @@ class FontBuilder:
         glyph.numberOfContours = -1
         glyph.components = []
 
-        l_comp = GlyphComponent()
-        l_comp.glyphName = l_name
-        l_comp.flags = 0x0002 | 0x0004
-        l_comp.x = 0
-        l_comp.y = 0
-        glyph.components.append(l_comp)
+        flags = 0x0002 | 0x0004
 
-        v_comp = GlyphComponent()
-        v_comp.glyphName = v_name
-        v_comp.flags = 0x0002 | 0x0004
-        v_comp.x = 0
-        v_comp.y = 0
-        glyph.components.append(v_comp)
+        glyph.components.append(
+            self._create_component(l_name, 0, 0, flags)
+        )
+
+        glyph.components.append(
+            self._create_component(v_name, 0, 0, flags)
+        )
 
         if t_name:
-            t_comp = GlyphComponent()
-            t_comp.glyphName = t_name
-            t_comp.flags = 0x0002 | 0x0004
-            t_comp.x = 0
-            t_comp.y = 0
-            glyph.components.append(t_comp)
-
-        # min_x, min_y = float('inf'), float('inf')
-        # max_x, max_y = float('-inf'), float('-inf')
-        #
-        # for comp_name in [l_name, v_name] + ([t_name] if t_name else []):
-        #     comp_glyph = self.glyphs[comp_name]
-        #     if hasattr(comp_glyph, 'xMin') and comp_glyph.xMin is not None:
-        #         min_x = min(min_x, comp_glyph.xMin)
-        #         min_y = min(min_y, comp_glyph.yMin)
-        #         max_x = max(max_x, comp_glyph.xMax)
-        #         max_y = max(max_y, comp_glyph.yMax)
-        #
-        # if min_x != float('inf'):
-        #     glyph.xMin = int(min_x)
-        #     glyph.yMin = int(min_y)
-        #     glyph.xMax = int(max_x)
-        #     glyph.yMax = int(max_y)
+            glyph.components.append(
+                self._create_component(t_name, 0, 0, flags)
+            )
 
         try:
             glyph.recalcBounds(self.glyphs)
@@ -304,6 +288,7 @@ class FontBuilder:
         self.cmap_data[char_code] = glyph_name
 
         return True
+
 
     def _fill_tables(self):
         self.fb.setupGlyf(self.glyphs)
@@ -327,9 +312,9 @@ class FontBuilder:
 
         # hhea 테이블
         self.fb.setupHorizontalHeader(
-            ascent=800,
-            descent=-200,
-            lineGap=90,
+            ascent=1100,
+            descent=-250,
+            lineGap=0,
             numberOfHMetrics=len(self.glyph_order)
         )
 
@@ -352,17 +337,17 @@ class FontBuilder:
             usWeightClass=400,
             usWidthClass=5,
             fsType=0,
-            sTypoAscender=800,
-            sTypoDescender=-200,
-            sTypoLineGap=90,
-            usWinAscent=800,
-            usWinDescent=200,
+            sTypoAscender=1100,
+            sTypoDescender=-250,
+            sTypoLineGap=0,
+            usWinAscent=1100,
+            usWinDescent=300,
             ulUnicodeRange1=(1 << 0) | (1 << 17),  # Basic Latin + Hangul Jamo
             ulUnicodeRange2=(1 << 28),  # Hangul Syllables
             ulUnicodeRange3=0,
             ulUnicodeRange4=0,
             ulCodePageRange1 = (1<<0) | (1<<19) | (1<<20),
-            ulCodePageRAnge2 = 0,
+            ulCodePageRange2 = 0,
             achVendID="HYEJ",
             fsSelection=(1 << 6) | (1 << 7),
             usFirstCharIndex=min(self.cmap_data.keys()) if self.cmap_data else 0,
