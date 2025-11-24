@@ -27,7 +27,8 @@ class FontBuilder:
         self.progress_callback = progress_callback if progress_callback else lambda cur, tot : None
 
         self.png_converter = PngToSvg(potrace_path, message_callback=self.callback, progress_callback=self.progress_callback)
-        self.glyph_builder = GlyphBuilder(upm=self.upm)
+        # self.glyph_builder = GlyphBuilder(upm=self.upm)
+        self.glyph_builder = GlyphBuilder()
 
         self.fb = TTFontBuilder(unitsPerEm=self.upm, isTTF=True)
         self.font = self.fb.font
@@ -145,7 +146,6 @@ class FontBuilder:
                 self.cmap_data[unicode_val] = glyph_name
             return True
         except Exception as e:
-            self.callback(f"    {file_name} 빌드 오류: {e}")
             if unicode_val:
                 self.cmap_data[unicode_val] = ".notdef"
             return False

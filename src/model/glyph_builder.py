@@ -13,6 +13,7 @@ class GlyphBuilder:
         self.PATH_REGEX = re.compile(r"([MLCZmlcz])([^MLCZmlcz]*)")
         self.current_x = 0
         self.current_y = 0
+        self.current_y = 0
         self.svg_height = None
         self.y_flip = False
 
@@ -55,23 +56,39 @@ class GlyphBuilder:
         y_flip = "scale(1,-1)" in svg_transform.lower()
 
         search_root = g_el if g_el is not None else root
-        path_el = search_root.find(".//svg:path", ns)
 
-        if path_el is None:
-            path_el = search_root.find(".//path")
-        if path_el is None:
+        path_els = search_root.findall(".//svg:path", ns)
+        if not path_els:
+            path_els = search_root.findall(".//path")
+        if not path_els:
             raise Exception(f"SVG : <path> 태그 없음")
 
-        d = path_el.get("d")
-        if not d:
+        all_d = []
+        path_transform = ""
+
+        # d = path_el.get("d")
+        # if not d:
+        #     raise Exception("SVG : <path> d 속성 없음.")
+
+        # path_transform = path_el.get("transform") or ""
+        for i, path_el in enumerate(path_els):
+            d = path_el.get("d")
+            if d:
+                all_d.append(d)
+
+            if i == 0:
+                path_transform = path_el.get("transform") or ""
+
+        if not all_d:
             raise Exception("SVG : <path> d 속성 없음.")
 
-        path_transform = path_el.get("transform") or ""
+        combine_d = " ".join(all_d)
+
         if "scale(1,-1)" in path_transform.lower():
             y_flip = True
 
         return {
-            "path_d": d,
+            "path_d": combine_d,
             "height": self.upm,
             "y_flip": y_flip,
             "svg_transform": svg_transform,
